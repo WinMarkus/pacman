@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>HTML5 Pacman</title>
+    <title>Pacman AI Competition</title>
     
     <style type="text/css">
       @font-face {
@@ -24,6 +24,33 @@
       h1 { font-family: BDCartoonShoutRegular; text-align:center; }
       body { width:342px; margin:0px auto; font-family:sans-serif; }
       a { text-decoration:none; }
+      body {
+        background-color: black;
+        color: white;
+        font-family: Arial, sans-serif;
+      }
+      #controls {
+        width: 380px;
+        margin: 20px auto;
+        text-align: center;
+      }
+      button {
+        background-color: #4CAF50;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+      }
+      #stats {
+        width: 380px;
+        margin: 20px auto;
+        text-align: left;
+      }
     </style>
 
 </head>
@@ -38,20 +65,85 @@
   Code on <a href="http://arandomurl.com/">Github</a>
 
   <div id="pacman"></div>
+  <div id="controls">
+    <button onclick="startGame('human')">Human Player</button>
+    <button onclick="startGame('random')">Random AI</button>
+    <button onclick="startGame('myAgent')">My Example Agent</button>
+  </div>
+  <div id="stats">
+    <h2>Game Statistics</h2>
+    <p>Score: <span id="score">0</span></p>
+    <p>Lives: <span id="lives">3</span></p>
+    <p>Pills Remaining: <span id="pills">0</span></p>
+    <p>Power Pills: <span id="powerPills">0</span></p>
+  </div>
+
   <script src="pacman.js"></script>
   <script src="modernizr-1.5.min.js"></script>
+  <script src="pacmanAgent.js"></script>
+  <script src="myPacman.js"></script>
 
   <script>
+    let game;
+    let statsInterval;
 
-    var el = document.getElementById("pacman");
+    function updateStats() {
+      if (!game || !game.user) return; // Guard against undefined game state
+      
+      // Get game state directly from the game instance
+      const score = game.user.theScore();
+      const lives = game.user.getLives();
+      const pills = game.getPillCount();
+      const powerPills = game.getPowerPillCount();
 
-    if (Modernizr.canvas && Modernizr.localstorage && 
-        Modernizr.audio && (Modernizr.audio.ogg || Modernizr.audio.mp3)) {
-      window.setTimeout(function () { PACMAN.init(el, "./"); }, 0);
-    } else { 
-      el.innerHTML = "Sorry, needs a decent browser<br /><small>" + 
-        "(firefox 3.6+, Chrome 4+, Opera 10+ and Safari 4+)</small>";
+      document.getElementById('score').textContent = score;
+      document.getElementById('lives').textContent = lives;
+      document.getElementById('pills').textContent = pills;
+      document.getElementById('powerPills').textContent = powerPills;
     }
+
+    function startGame(mode) {
+      // Clear any existing game
+      if (game) {
+        clearInterval(statsInterval);
+        document.getElementById('pacman').innerHTML = '';
+      }
+
+      // Stop any existing stats interval
+      if (statsInterval) {
+        clearInterval(statsInterval);
+      }
+
+      // Initialize the game
+      const pacmanElem = document.getElementById('pacman');
+      
+      if (Modernizr.canvas && Modernizr.localstorage && 
+          Modernizr.audio && (Modernizr.audio.ogg || Modernizr.audio.mp3)) {
+        
+        // Initialize game with a callback
+        PACMAN.init(pacmanElem, "./", function(newGame) {
+          game = newGame;
+          
+          // Set up the agent if not human player
+          if (mode === 'random') {
+            const agent = new RandomAgent(game, game.map);
+            game.user.setAgent(agent);
+          } else if(mode === 'myAgent') {
+            const agent = new MyAgent(game, game.map);
+            game.user.setAgent(agent);
+          }
+
+          // Start stats update interval only after game is initialized
+          statsInterval = setInterval(updateStats, 100);
+        });
+      } else { 
+        pacmanElem.innerHTML = "Sorry, needs a decent browser<br /><small>" + 
+          "(firefox 3.6+, Chrome 4+, Opera 10+ and Safari 4+)</small>";
+      }
+    }
+
+    // Start with human player by default
+    window.onload = () => startGame('human');
   </script>
 
 </body>

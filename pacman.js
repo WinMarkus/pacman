@@ -284,12 +284,37 @@ Pacman.User = function (game, map) {
         due       = null, 
         lives     = null,
         score     = 5,
+        agent     = null,
         keyMap    = {};
     
     keyMap[KEY.ARROW_LEFT]  = LEFT;
     keyMap[KEY.ARROW_UP]    = UP;
     keyMap[KEY.ARROW_RIGHT] = RIGHT;
     keyMap[KEY.ARROW_DOWN]  = DOWN;
+
+    function setAgent(aiAgent) {
+        agent = aiAgent;
+        if (agent) {
+            agent.position = position;
+            agent.direction = direction;
+        }
+    }
+
+    function getGameState() {
+        return {
+            pacman: {
+                position: position,
+                direction: direction
+            },
+            ghosts: game.getGhostPositions(),
+            score: score,
+            lives: lives,
+            map: map,
+            pills: game.getPillCount(),
+            powerPills: game.getPowerPillCount(),
+            tick: game.getTick()
+        };
+    }
 
     function addScore(nScore) { 
         score += nScore;
@@ -319,6 +344,9 @@ Pacman.User = function (game, map) {
     function newLevel() {
         resetPosition();
         eaten = 0;
+        if (agent) {
+            agent.init();
+        }
     };
     
     function resetPosition() {
@@ -333,6 +361,8 @@ Pacman.User = function (game, map) {
     };        
     
     function keyDown(e) {
+        if (agent) return true; // Ignore keyboard when using AI agent
+        
         if (typeof keyMap[e.keyCode] !== "undefined") { 
             due = keyMap[e.keyCode];
             e.preventDefault();
@@ -340,7 +370,7 @@ Pacman.User = function (game, map) {
             return false;
         }
         return true;
-	};
+    };
 
     function getNewCoord(dir, current) {   
         return {
@@ -387,6 +417,11 @@ Pacman.User = function (game, map) {
     };
 
     function move(ctx) {
+        if (agent) {
+            // Update agent's position and get next move
+            agent.position = position;
+            due = agent.getNextMove(getGameState());
+        }
         
         var npos        = null, 
             nextWhole   = null, 
@@ -525,7 +560,9 @@ Pacman.User = function (game, map) {
         "move"          : move,
         "newLevel"      : newLevel,
         "reset"         : reset,
-        "resetPosition" : resetPosition
+        "resetPosition" : resetPosition,
+        "setAgent"      : setAgent,
+        "getGameState"  : getGameState
     };
 };
 
@@ -1027,8 +1064,7 @@ var PACMAN = (function () {
         }
     };
     
-    function init(wrapper, root) {
-        
+    function init(wrapper, root, callback) {
         var i, len, ghost,
             blockSize = wrapper.offsetWidth / 19,
             canvas    = document.createElement("canvas");
@@ -1042,15 +1078,27 @@ var PACMAN = (function () {
 
         audio = new Pacman.Audio({"soundDisabled":soundDisabled});
         map   = new Pacman.Map(blockSize);
-        user  = new Pacman.User({ 
-            "completedLevel" : completedLevel, 
-            "eatenPill"      : eatenPill 
-        }, map);
+
+        // Create the game instance first
+        const gameInstance = {
+            map: map,
+            audio: audio,
+            getGhostPositions: getGhostPositions,
+            getPillCount: getPillCount,
+            getPowerPillCount: getPowerPillCount,
+            getTick: getTick,
+            completedLevel: completedLevel,
+            eatenPill: eatenPill
+        };
+
+        user = new Pacman.User(gameInstance, map);
+        gameInstance.user = user;
 
         for (i = 0, len = ghostSpecs.length; i < len; i += 1) {
             ghost = new Pacman.Ghost({"getTick":getTick}, map, ghostSpecs[i]);
             ghosts.push(ghost);
         }
+        gameInstance.ghosts = ghosts;
         
         map.draw(ctx);
         dialog("Loading ...");
@@ -1066,7 +1114,12 @@ var PACMAN = (function () {
             ["eating2", root + "audio/eating.short." + extension]
         ];
 
-        load(audio_files, function() { loaded(); });
+        load(audio_files, function() { 
+            loaded();
+            if (callback) {
+                callback(gameInstance);
+            }
+        });
     };
 
     function load(arr, callback) { 
@@ -1089,8 +1142,44 @@ var PACMAN = (function () {
         timer = window.setInterval(mainLoop, 1000 / Pacman.FPS);
     };
     
+    function getGhostPositions() {
+        return ghosts.map(ghost => ({
+            position: ghost.position,
+            direction: ghost.direction,
+            isVulnerable: ghost.isVunerable(),
+            isDangerous: ghost.isDangerous()
+        }));
+    }
+
+    function getPillCount() {
+        let count = 0;
+        for (let y = 0; y < map.height; y++) {
+            for (let x = 0; x < map.width; x++) {
+                if (map.block({x, y}) === Pacman.BISCUIT) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    function getPowerPillCount() {
+        let count = 0;
+        for (let y = 0; y < map.height; y++) {
+            for (let x = 0; x < map.width; x++) {
+                if (map.block({x, y}) === Pacman.PILL) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
     return {
-        "init" : init
+        "init" : init,
+        "getGhostPositions" : getGhostPositions,
+        "getPillCount" : getPillCount,
+        "getPowerPillCount" : getPowerPillCount
     };
     
 }());
