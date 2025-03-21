@@ -61,14 +61,21 @@
 
   <h1>HTML5 Pacman</h1>
 
-  <a href="http://arandomurl.com/">Writeup</a> |
-  Code on <a href="http://arandomurl.com/">Github</a>
-
   <div id="pacman"></div>
   <div id="controls">
     <button onclick="startGame('human')">Human Player</button>
     <button onclick="startGame('random')">Random AI</button>
     <button onclick="startGame('myAgent')">My Example Agent</button>
+    <div style="margin-top: 10px;">
+      <label for="speed">Game Speed:</label>
+      <select id="speed" onchange="changeSpeed(this.value)">
+        <option value="25">25% (Slow)</option>
+        <option value="50">50% (Half Speed)</option>
+        <option value="100" selected>100% (Normal)</option>
+        <option value="200">200% (Double Speed)</option>
+        <option value="300">300% (Triple Speed)</option>
+      </select>
+    </div>
   </div>
   <div id="stats">
     <h2>Game Statistics</h2>
@@ -76,6 +83,7 @@
     <p>Lives: <span id="lives">3</span></p>
     <p>Pills Remaining: <span id="pills">0</span></p>
     <p>Power Pills: <span id="powerPills">0</span></p>
+    <p>Grid Position: <span id="position">0,0</span></p>
   </div>
 
   <script src="pacman.js"></script>
@@ -87,10 +95,16 @@
     let game;
     let statsInterval;
 
+    function changeSpeed(speedPercent) {
+      if (game) {
+        game.setSpeed(parseInt(speedPercent));
+      }
+    }
+
     function updateStats() {
       if (!game || !game.user) return; // Guard against undefined game state
       
-      // Get game state directly from the game instance
+      const gameState = game.user.getGameState();
       const score = game.user.theScore();
       const lives = game.user.getLives();
       const pills = game.getPillCount();
@@ -100,6 +114,11 @@
       document.getElementById('lives').textContent = lives;
       document.getElementById('pills').textContent = pills;
       document.getElementById('powerPills').textContent = powerPills;
+      document.getElementById('position').textContent = 
+        `${gameState.pacman.gridPosition.x},${gameState.pacman.gridPosition.y}`;
+
+      // Log ghost positions for debugging
+      console.log('Ghosts:', gameState.ghosts);
     }
 
     function startGame(mode) {

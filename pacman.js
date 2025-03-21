@@ -21,11 +21,26 @@ var NONE        = 4,
     DYING       = 10,
     Pacman      = {};
 
-Pacman.FPS = 30;
+// Game configuration
+Pacman.FPS = 30;  // Default speed
+Pacman.GRID_SIZE = 10; // Size of one grid square in game units
+Pacman.PLAYER_SPEED = 2; // How many units pacman moves per frame
+Pacman.MAP_WIDTH = 19;  // Width in grid squares
+Pacman.MAP_HEIGHT = 22; // Height in grid squares
+
+// Allow speed to be changed
+Pacman.setSpeed = function(speedPercent) {
+    // speedPercent: 100 is normal speed, 50 is half speed, 200 is double speed
+    Pacman.FPS = (30 * speedPercent) / 100;
+    if (PACMAN.timer) {
+        clearInterval(PACMAN.timer);
+        PACMAN.timer = window.setInterval(PACMAN.mainLoop, 1000 / Pacman.FPS);
+    }
+};
 
 Pacman.Ghost = function (game, map, colour) {
 
-    var position  = null,
+    var position  = {"x": 90, "y": 80},
         direction = null,
         eatable   = null,
         eaten     = null,
@@ -272,7 +287,9 @@ Pacman.Ghost = function (game, map, colour) {
         "makeEatable" : makeEatable,
         "reset"       : reset,
         "move"        : move,
-        "draw"        : draw
+        "draw"        : draw,
+        "getPosition" : function() { return position; },
+        "getDirection": function() { return direction; }
     };
 };
 
@@ -285,6 +302,7 @@ Pacman.User = function (game, map) {
         lives     = null,
         score     = 5,
         agent     = null,
+        lastMoveTime = 0,
         keyMap    = {};
     
     keyMap[KEY.ARROW_LEFT]  = LEFT;
@@ -297,6 +315,13 @@ Pacman.User = function (game, map) {
         if (agent) {
             agent.position = position;
             agent.direction = direction;
+            // Provide movement constraints to the agent
+            agent.moveConstraints = {
+                gridSize: Pacman.GRID_SIZE,
+                maxSpeed: Pacman.PLAYER_SPEED,
+                mapWidth: Pacman.MAP_WIDTH,
+                mapHeight: Pacman.MAP_HEIGHT
+            };
         }
     }
 
@@ -304,7 +329,11 @@ Pacman.User = function (game, map) {
         return {
             pacman: {
                 position: position,
-                direction: direction
+                direction: direction,
+                gridPosition: {
+                    x: Math.floor(position.x / Pacman.GRID_SIZE),
+                    y: Math.floor(position.y / Pacman.GRID_SIZE)
+                }
             },
             ghosts: game.getGhostPositions(),
             score: score,
@@ -312,7 +341,13 @@ Pacman.User = function (game, map) {
             map: map,
             pills: game.getPillCount(),
             powerPills: game.getPowerPillCount(),
-            tick: game.getTick()
+            tick: game.getTick(),
+            moveConstraints: {
+                gridSize: Pacman.GRID_SIZE,
+                maxSpeed: Pacman.PLAYER_SPEED,
+                mapWidth: Pacman.MAP_WIDTH,
+                mapHeight: Pacman.MAP_HEIGHT
+            }
         };
     }
 
@@ -373,10 +408,30 @@ Pacman.User = function (game, map) {
     };
 
     function getNewCoord(dir, current) {   
-        return {
-            "x": current.x + (dir === LEFT && -2 || dir === RIGHT && 2 || 0),
-            "y": current.y + (dir === DOWN && 2 || dir === UP    && -2 || 0)
+        // Enforce one square at a time movement
+        const speed = Pacman.PLAYER_SPEED;
+        const newPos = {
+            "x": current.x + (dir === LEFT && -speed || dir === RIGHT && speed || 0),
+            "y": current.y + (dir === DOWN && speed || dir === UP && -speed || 0)
         };
+
+        // Ensure we don't move more than one square at a time
+        const currentSquare = {
+            x: Math.floor(current.x / Pacman.GRID_SIZE),
+            y: Math.floor(current.y / Pacman.GRID_SIZE)
+        };
+        const newSquare = {
+            x: Math.floor(newPos.x / Pacman.GRID_SIZE),
+            y: Math.floor(newPos.y / Pacman.GRID_SIZE)
+        };
+
+        // If trying to move more than one square, limit the movement
+        if (Math.abs(newSquare.x - currentSquare.x) > 1 || 
+            Math.abs(newSquare.y - currentSquare.y) > 1) {
+            return current;
+        }
+
+        return newPos;
     };
 
     function onWholeSquare(x) {
@@ -1088,7 +1143,14 @@ var PACMAN = (function () {
             getPowerPillCount: getPowerPillCount,
             getTick: getTick,
             completedLevel: completedLevel,
-            eatenPill: eatenPill
+            eatenPill: eatenPill,
+            setSpeed: Pacman.setSpeed,
+            config: {
+                GRID_SIZE: Pacman.GRID_SIZE,
+                PLAYER_SPEED: Pacman.PLAYER_SPEED,
+                MAP_WIDTH: Pacman.MAP_WIDTH,
+                MAP_HEIGHT: Pacman.MAP_HEIGHT
+            }
         };
 
         user = new Pacman.User(gameInstance, map);
@@ -1144,8 +1206,8 @@ var PACMAN = (function () {
     
     function getGhostPositions() {
         return ghosts.map(ghost => ({
-            position: ghost.position,
-            direction: ghost.direction,
+            position: ghost.getPosition(),
+            direction: ghost.getDirection(),
             isVulnerable: ghost.isVunerable(),
             isDangerous: ghost.isDangerous()
         }));

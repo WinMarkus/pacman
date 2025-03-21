@@ -7,6 +7,9 @@ class MyAgent extends PacmanAgent {
         // - gameState.ghosts: array of ghost info
         // - gameState.map: the game map
         // - gameState.score, lives, pills, powerPills
+
+        
+
         return /* UP, DOWN, LEFT, RIGHT, or NONE */;
     }
 }
